@@ -5,7 +5,9 @@ contract StorageProof {
     use aztec::{
         macros::{functions::{private, utility, view}, storage::storage},
         messages::logs::note::encode_and_encrypt_note,
-        prelude::{AztecAddress, Map, NoteGetterOptions, PrivateMutable},
+        note::note_getter_options::NoteGetterOptions,
+        protocol_types::address::AztecAddress,
+        state_vars::{Map, PrivateMutable},
     };
 
     use uint_note::uint_note::UintNote;
@@ -19,7 +21,7 @@ contract StorageProof {
     fn set_value(value: u128) {
         let sender = context.msg_sender();
         storage.value.at(sender).initialize_or_replace(UintNote::new(value, sender)).emit(
-            encode_and_encrypt_note(&mut context, sender, sender),
+            encode_and_encrypt_note(&mut context, sender),
         );
     }
 

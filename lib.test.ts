@@ -23,17 +23,24 @@ test("flow", async () => {
   const accounts = await getInitialTestAccountsManagers(pxe);
   const alice = await accounts[0]!.register();
 
-  const contract = await StorageProofContract.deploy(alice).send().deployed();
+  const contract = await StorageProofContract.deploy(alice)
+    .send({ from: alice.getAddress() })
+    .deployed();
   console.log("deployed at", contract.address.toString());
 
   await setValueAndTestProof(100);
   await setValueAndTestProof(200);
 
   async function setValueAndTestProof(value: number) {
-    await contract.methods.set_value(value).send().wait();
+    await contract.methods
+      .set_value(value)
+      .send({ from: alice.getAddress() })
+      .wait();
 
     const noteInclusionData = new NoteInclusionData(
-      await contract.methods.get_note(alice.getAddress()).simulate(),
+      await contract.methods
+        .get_note(alice.getAddress())
+        .simulate({ from: alice.getAddress() }),
     );
 
     const input = await noteInclusionData.toNoirInput(node);

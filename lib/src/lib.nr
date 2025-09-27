@@ -1,18 +1,20 @@
 use aztec::{
+    context::PrivateContext,
     note::{
         note_getter::get_notes,
+        note_getter_options::NoteGetterOptions,
         note_interface::{NoteHash, NoteType},
         note_metadata::{NoteMetadata, SettledNoteMetadata},
         retrieved_note::RetrievedNote,
         utils::compute_note_hash_for_nullify,
     },
-    prelude::{AztecAddress, NoteGetterOptions, PrivateContext},
     protocol_types::{
+        address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
         traits::{Packable, Serialize},
     },
-    state_vars::storage::Storage,
+    state_vars::storage::HasStorageSlot,
 };
 
 pub fn assert_note_inclusion<NOTE>(
@@ -44,13 +46,13 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
+pub fn get_note_inclusion_data<NOTE, let N: u32, let M: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
     context: &mut PrivateContext,
-    storage_var: impl Storage<_>,
-    options: NoteGetterOptions<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>,
+    storage_var: impl HasStorageSlot<N>,
+    options: NoteGetterOptions<NOTE, M, PREPROCESSOR_ARGS, FILTER_ARGS>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable<N> + Eq,
+    NOTE: NoteType + NoteHash + Packable<N = M> + Eq,
 {
     let storage_slot = storage_var.get_storage_slot();
     let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
@@ -60,18 +62,8 @@ where
     NoteInclusionData { note, note_hash }
 }
 
+#[derive(Serialize)]
 pub struct NoteInclusionData<Note> {
     pub note: RetrievedNote<Note>,
     pub note_hash: Field,
-}
-
-impl<Note, let N: u32> Serialize<N + 3 + 1> for NoteInclusionData<Note>
-where
-    Note: Serialize<N>,
-{
-    fn serialize(self) -> [Field; N + 3 + 1] {
-        let a = self.note.serialize();
-        let b = a.concat([self.note_hash]);
-        b
-    }
 }

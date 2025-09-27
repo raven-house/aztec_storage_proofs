@@ -1,11 +1,9 @@
-use aztec::{
-    prelude::AztecAddress,
-    protocol_types::{
-        constants::NOTE_HASH_TREE_HEIGHT,
-        merkle_tree::membership::MembershipWitness,
-        storage::map::derive_storage_slot_in_map,
-        traits::{FromField, ToField},
-    },
+use aztec::protocol_types::{
+    address::AztecAddress,
+    constants::NOTE_HASH_TREE_HEIGHT,
+    merkle_tree::membership::MembershipWitness,
+    storage::map::derive_storage_slot_in_map,
+    traits::{FromField, ToField},
 };
 use uint_note::uint_note::UintNote;
 
@@ -27,7 +25,7 @@ fn main(
     let real_value = note.get_value();
     assert(real_value == expected_value, f"value mismatch: {real_value} != {expected_value}");
 
-    let storage_slot = derive_storage_slot_in_map(map_storage_slot, note.owner.to_field());
+    let storage_slot = derive_storage_slot_in_map(map_storage_slot, note.get_owner().to_field());
     storage_proofs::assert_note_inclusion(
         note,
         note_nonce,
