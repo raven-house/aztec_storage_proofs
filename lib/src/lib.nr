@@ -12,7 +12,7 @@ use aztec::{
         address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
-        traits::{Packable, Serialize},
+        traits::{Deserialize, Packable, Serialize},
     },
     state_vars::storage::HasStorageSlot,
 };
@@ -20,6 +20,7 @@ use aztec::{
 pub fn assert_note_inclusion<NOTE>(
     note: NOTE,
     note_nonce: Field,
+    randomness: Field,
     membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     contract_address: AztecAddress,
     storage_slot: Field,
@@ -33,6 +34,7 @@ where
         note,
         contract_address,
         metadata: NoteMetadata::from(SettledNoteMetadata::new(note_nonce)),
+        randomness,
     };
     let note_hash = compute_note_hash_for_nullification(retrieved_note, storage_slot);
     let computed_root = root_from_sibling_path(
@@ -62,7 +64,7 @@ where
     NoteInclusionData { note, note_hash }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct NoteInclusionData<Note> {
     pub note: RetrievedNote<Note>,
     pub note_hash: Field,

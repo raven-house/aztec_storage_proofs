@@ -4,7 +4,7 @@ globalThis.self = globalThis; // needed by pxe https://github.com/AztecProtocol/
 
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { UltraHonkBackend } from "@aztec/bb.js";
+import { Barretenberg, UltraHonkBackend } from "@aztec/bb.js";
 import { Noir, type CompiledCircuit, type InputMap } from "@aztec/noir-noir_js";
 import { getPXEConfig } from "@aztec/pxe/client/bundle";
 import { TestWallet } from "@aztec/test-wallet/server";
@@ -58,7 +58,8 @@ test("flow", async () => {
 
 async function generateProof(circuit: CompiledCircuit, input: InputMap) {
   const noir = new Noir(circuit);
-  const backend = new UltraHonkBackend(circuit.bytecode);
+  const api = await Barretenberg.initSingleton();
+  const backend = new UltraHonkBackend(circuit.bytecode, api);
 
   const { witness } = await noir.execute(input);
 

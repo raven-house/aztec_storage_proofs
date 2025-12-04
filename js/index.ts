@@ -59,6 +59,7 @@ export class NoteInclusionData {
       note: noteForNoir,
       note_nonce,
       contract_address,
+      randomness: this.note.randomness.toString(),
       membership_witness: {
         leaf_index: membershipWitness.leafIndex.toString(),
         sibling_path: membershipWitness.siblingPath.map((p) => p.toString()),

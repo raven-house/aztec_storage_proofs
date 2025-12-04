@@ -13,6 +13,8 @@ fn main(
     membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     // The nonce of the note for the note hash.
     note_nonce: Field,
+    // The randomness of the note.
+    randomness: Field,
     // The Aztec smart contract address.
     contract_address: pub Field,
     // The storage slot of the mapping in the contract.
@@ -29,6 +31,7 @@ fn main(
     storage_proofs::assert_note_inclusion(
         note,
         note_nonce,
+        randomness,
         membership_witness,
         AztecAddress::from_field(contract_address),
         storage_slot,
