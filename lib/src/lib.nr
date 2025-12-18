@@ -49,13 +49,13 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32>(
+pub fn get_note_inclusion_data<NOTE>(
     context: &mut PrivateContext,
     storage_slot: Field,
     owner: Option<AztecAddress>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable<N = N>,
+    NOTE: NoteType + NoteHash + Packable,
 {
     let (note, _) = get_note(context, owner, storage_slot);
     let note_hash = compute_note_hash_for_nullification(note);
