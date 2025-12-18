@@ -1,8 +1,7 @@
 use aztec::{
     context::PrivateContext,
     note::{
-        note_getter::get_notes,
-        note_getter_options::NoteGetterOptions,
+        note_getter::get_note,
         note_interface::{NoteHash, NoteType},
         note_metadata::{NoteMetadata, SettledNoteMetadata},
         retrieved_note::RetrievedNote,
@@ -14,7 +13,6 @@ use aztec::{
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
         traits::{Deserialize, Packable, Serialize},
     },
-    state_vars::storage::HasStorageSlot,
 };
 
 pub fn assert_note_inclusion<NOTE>(
@@ -24,6 +22,7 @@ pub fn assert_note_inclusion<NOTE>(
     membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     contract_address: AztecAddress,
     storage_slot: Field,
+    owner: AztecAddress,
     note_hash_tree_root: Field,
 )
 where
@@ -33,10 +32,12 @@ where
     let retrieved_note = RetrievedNote {
         note,
         contract_address,
+        storage_slot,
+        owner,
         metadata: NoteMetadata::from(SettledNoteMetadata::new(note_nonce)),
         randomness,
     };
-    let note_hash = compute_note_hash_for_nullification(retrieved_note, storage_slot);
+    let note_hash = compute_note_hash_for_nullification(retrieved_note);
     let computed_root = root_from_sibling_path(
         note_hash,
         membership_witness.leaf_index,
@@ -48,19 +49,16 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32, let M: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
+pub fn get_note_inclusion_data<NOTE, let N: u32>(
     context: &mut PrivateContext,
-    storage_var: impl HasStorageSlot<N>,
-    options: NoteGetterOptions<NOTE, M, PREPROCESSOR_ARGS, FILTER_ARGS>,
+    storage_slot: Field,
+    owner: Option<AztecAddress>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable<N = M> + Eq,
+    NOTE: NoteType + NoteHash + Packable<N = N>,
 {
-    let storage_slot = storage_var.get_storage_slot();
-    let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
-        get_notes::<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>(context, storage_slot, options);
-    let note = retrieved_notes.get(0);
-    let note_hash = compute_note_hash_for_nullification(note, storage_slot);
+    let (note, _) = get_note(context, owner, storage_slot);
+    let note_hash = compute_note_hash_for_nullification(note);
     NoteInclusionData { note, note_hash }
 }
 
