@@ -1,7 +1,7 @@
 [package]
 name = "storage_proofs"
 type = "lib"
-authors = ["nemi.fi"]
+authors = ["Raven House Team"]
 
 [dependencies]
-aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v1.1.2", directory = "noir-projects/aztec-nr/aztec" }
+aztec = { git = "https://github.com/AztecProtocol/aztec-packages/", tag = "v4.2.0", directory = "noir-projects/aztec-nr/aztec" }

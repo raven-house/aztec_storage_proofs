@@ -1,18 +1,20 @@
 use aztec::{
+    context::PrivateContext,
     note::{
         note_getter::get_notes,
+        note_getter_options::NoteGetterOptions,
         note_interface::{NoteHash, NoteType},
         note_metadata::{NoteMetadata, SettledNoteMetadata},
         retrieved_note::RetrievedNote,
         utils::compute_note_hash_for_nullify,
     },
-    prelude::{AztecAddress, NoteGetterOptions, PrivateContext},
     protocol_types::{
+        address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
         traits::{Packable, Serialize},
     },
-    state_vars::storage::Storage,
+    state_vars::storage,
 };
 
 pub fn assert_note_inclusion<NOTE>(
@@ -46,13 +48,12 @@ where
 
 pub fn get_note_inclusion_data<NOTE, let N: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
     context: &mut PrivateContext,
-    storage_var: impl Storage<_>,
+    storage_slot: Field,
     options: NoteGetterOptions<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>,
 ) -> NoteInclusionData<NOTE>
 where
     NOTE: NoteType + NoteHash + Packable<N> + Eq,
 {
-    let storage_slot = storage_var.get_storage_slot();
     let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
         get_notes::<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>(context, storage_slot, options);
     let note = retrieved_notes.get(0);
