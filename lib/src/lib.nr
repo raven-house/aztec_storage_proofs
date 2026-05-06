@@ -1,40 +1,36 @@
 use aztec::{
-    context::PrivateContext,
-    note::{
-        note_getter::get_notes,
-        note_getter_options::NoteGetterOptions,
-        note_interface::{NoteHash, NoteType},
-        note_metadata::{NoteMetadata, SettledNoteMetadata},
-        retrieved_note::RetrievedNote,
-        utils::compute_note_hash_for_nullify,
-    },
-    protocol_types::{
+    note::note_interface::NoteHash,
+    protocol::{
         address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
-        traits::{Packable, Serialize},
     },
-    state_vars::storage,
 };
 
+/// Asserts that a note is included in the note hash tree at the given root.
+///
+/// This function verifies a merkle inclusion proof for a note.
+///
+/// # Arguments
+/// * `note` - The note to verify inclusion for
+/// * `owner` - The owner of the note
+/// * `storage_slot` - The storage slot where the note is stored
+/// * `randomness` - The randomness used in the note hash computation
+/// * `membership_witness` - The merkle membership witness containing the sibling path
+/// * `note_hash_tree_root` - The expected root of the note hash tree
 pub fn assert_note_inclusion<NOTE>(
     note: NOTE,
-    note_nonce: Field,
-    membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
-    contract_address: AztecAddress,
+    owner: AztecAddress,
     storage_slot: Field,
+    randomness: Field,
+    membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     note_hash_tree_root: Field,
 )
 where
     NOTE: NoteHash,
 {
-    // storage proof
-    let retrieved_note = RetrievedNote {
-        note,
-        contract_address,
-        metadata: NoteMetadata::from(SettledNoteMetadata::new(note_nonce)),
-    };
-    let note_hash = compute_note_hash_for_nullify(retrieved_note, storage_slot);
+    // Compute the note hash using the NoteHash trait
+    let note_hash = note.compute_note_hash(owner, storage_slot, randomness);
     let computed_root = root_from_sibling_path(
         note_hash,
         membership_witness.leaf_index,
@@ -46,33 +42,43 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
-    context: &mut PrivateContext,
+/// Computes the note hash for a given note.
+///
+/// # Arguments
+/// * `note` - The note to compute the hash for
+/// * `owner` - The owner of the note
+/// * `storage_slot` - The storage slot where the note is stored
+/// * `randomness` - The randomness used in the note hash computation
+///
+/// # Returns
+/// The computed note hash
+pub fn compute_note_hash<NOTE>(
+    note: NOTE,
+    owner: AztecAddress,
     storage_slot: Field,
-    options: NoteGetterOptions<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>,
-) -> NoteInclusionData<NOTE>
+    randomness: Field,
+) -> Field
 where
-    NOTE: NoteType + NoteHash + Packable<N> + Eq,
+    NOTE: NoteHash,
 {
-    let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
-        get_notes::<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>(context, storage_slot, options);
-    let note = retrieved_notes.get(0);
-    let note_hash = compute_note_hash_for_nullify(note, storage_slot);
-    NoteInclusionData { note, note_hash }
+    note.compute_note_hash(owner, storage_slot, randomness)
 }
 
+/// Data structure containing note information for inclusion proofs.
 pub struct NoteInclusionData<Note> {
-    pub note: RetrievedNote<Note>,
+    pub note: Note,
+    pub owner: AztecAddress,
+    pub storage_slot: Field,
+    pub randomness: Field,
     pub note_hash: Field,
 }
 
-impl<Note, let N: u32> Serialize<N + 3 + 1> for NoteInclusionData<Note>
+impl<Note> NoteInclusionData<Note>
 where
-    Note: Serialize<N>,
+    Note: NoteHash,
 {
-    fn serialize(self) -> [Field; N + 3 + 1] {
-        let a = self.note.serialize();
-        let b = a.concat([self.note_hash]);
-        b
+    pub fn new(note: Note, owner: AztecAddress, storage_slot: Field, randomness: Field) -> Self {
+        let note_hash = note.compute_note_hash(owner, storage_slot, randomness);
+        Self { note, owner, storage_slot, randomness, note_hash }
     }
 }

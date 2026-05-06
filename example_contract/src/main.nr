@@ -1,38 +1,38 @@
 use aztec::macros::aztec;
 
 #[aztec]
-contract StorageProof {
+pub contract StorageProof {
     use aztec::{
-        macros::{functions::{private, utility, view}, storage::storage},
-        messages::logs::note::encode_and_encrypt_note,
-        prelude::{AztecAddress, Map, NoteGetterOptions, PrivateMutable},
+        macros::{functions::{external, view}, storage::storage},
+        messages::message_delivery::MessageDelivery,
+        protocol::address::AztecAddress,
+        state_vars::{Owned, PublicMutable},
     };
 
-    use uint_note::uint_note::UintNote;
+    use balance_set::BalanceSet;
 
     #[storage]
-    struct Storage<C> {
-        value: Map<AztecAddress, PrivateMutable<UintNote, C>, C>,
+    struct Storage<Context> {
+        private_balances: Owned<BalanceSet<Context>, Context>,
+        public_balances: PublicMutable<u128, Context>,
     }
 
-    #[private]
+    #[external("private")]
     fn set_value(value: u128) {
-        let sender = context.msg_sender();
-        storage.value.at(sender).initialize_or_replace(UintNote::new(value, sender)).emit(
-            encode_and_encrypt_note(&mut context, sender, sender),
+        let sender = self.msg_sender();
+        self.storage.private_balances.at(sender).add(value).deliver(
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
     }
 
-    #[utility]
+    #[external("utility")]
     unconstrained fn get_value(owner: AztecAddress) -> u128 {
-        storage.value.at(owner).view_note().get_value()
+        self.storage.private_balances.at(owner).balance_of()
     }
 
-    #[private]
+    #[external("public")]
     #[view]
-    fn get_note(owner: AztecAddress) -> pub storage_proofs::NoteInclusionData<UintNote> {
-        let mut options = NoteGetterOptions::new();
-        options = options.set_limit(1);
-        storage_proofs::get_note_inclusion_data(&mut context, storage.value.at(owner), options)
+    fn get_public_balance() -> u128 {
+        self.storage.public_balances.read()
     }
 }
