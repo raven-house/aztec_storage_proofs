@@ -1,24 +1,25 @@
 use aztec::{
     context::PrivateContext,
     note::{
+        ConfirmedNote,
+        HintedNote,
         note_getter::get_notes,
         note_getter_options::NoteGetterOptions,
         note_interface::{NoteHash, NoteType},
-        note_metadata::{NoteMetadata, SettledNoteMetadata},
-        retrieved_note::RetrievedNote,
-        utils::compute_note_hash_for_nullify,
     },
-    protocol_types::{
+    protocol::{
         address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
+        hash::{compute_siloed_note_hash, compute_unique_note_hash},
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
         traits::{Packable, Serialize},
     },
-    state_vars::storage,
 };
 
 pub fn assert_note_inclusion<NOTE>(
     note: NOTE,
+    owner: AztecAddress,
+    randomness: Field,
     note_nonce: Field,
     membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     contract_address: AztecAddress,
@@ -28,15 +29,16 @@ pub fn assert_note_inclusion<NOTE>(
 where
     NOTE: NoteHash,
 {
+    // Recompute the unique note hash that is stored as a leaf in the note hash tree for a settled note. Since 4.3.0
+    // notes no longer embed their owner/randomness, so these are passed alongside the note in order to compute the
+    // inner (non-siloed) note hash.
+    let inner_note_hash = note.compute_note_hash(owner, storage_slot, randomness);
+    let siloed_note_hash = compute_siloed_note_hash(contract_address, inner_note_hash);
+    let unique_note_hash = compute_unique_note_hash(note_nonce, siloed_note_hash);
+
     // storage proof
-    let retrieved_note = RetrievedNote {
-        note,
-        contract_address,
-        metadata: NoteMetadata::from(SettledNoteMetadata::new(note_nonce)),
-    };
-    let note_hash = compute_note_hash_for_nullify(retrieved_note, storage_slot);
     let computed_root = root_from_sibling_path(
-        note_hash,
+        unique_note_hash,
         membership_witness.leaf_index,
         membership_witness.sibling_path,
     );
@@ -46,33 +48,35 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
+pub fn get_note_inclusion_data<NOTE, let M: u32, PreprocessorArgs, FilterArgs>(
     context: &mut PrivateContext,
     storage_slot: Field,
-    options: NoteGetterOptions<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>,
+    options: NoteGetterOptions<NOTE, M, PreprocessorArgs, FilterArgs>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable<N> + Eq,
+    NOTE: NoteType + NoteHash + Eq + Packable<N = M>,
 {
-    let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
-        get_notes::<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>(context, storage_slot, options);
-    let note = retrieved_notes.get(0);
-    let note_hash = compute_note_hash_for_nullify(note, storage_slot);
+    let confirmed_notes: BoundedVec<ConfirmedNote<NOTE>, _> =
+        get_notes(context, storage_slot, options);
+    let confirmed_note = confirmed_notes.get(0);
+
+    // Re-package the confirmed note as a `HintedNote`, which carries all the data required to later re-prove the
+    // note's existence (and is `Serialize`able, unlike `ConfirmedNote`).
+    let note = HintedNote {
+        note: confirmed_note.note,
+        contract_address: confirmed_note.contract_address,
+        owner: confirmed_note.owner,
+        randomness: confirmed_note.randomness,
+        storage_slot: confirmed_note.storage_slot,
+        metadata: confirmed_note.metadata,
+    };
+    // For a settled note the note hash used to prove existence is the unique note hash stored in the tree.
+    let note_hash = confirmed_note.proven_note_hash;
     NoteInclusionData { note, note_hash }
 }
 
+#[derive(Serialize)]
 pub struct NoteInclusionData<Note> {
-    pub note: RetrievedNote<Note>,
+    pub note: HintedNote<Note>,
     pub note_hash: Field,
-}
-
-impl<Note, let N: u32> Serialize<N + 3 + 1> for NoteInclusionData<Note>
-where
-    Note: Serialize<N>,
-{
-    fn serialize(self) -> [Field; N + 3 + 1] {
-        let a = self.note.serialize();
-        let b = a.concat([self.note_hash]);
-        b
-    }
 }
