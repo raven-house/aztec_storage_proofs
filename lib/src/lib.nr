@@ -55,7 +55,7 @@ pub fn get_note_inclusion_data<NOTE, let M: u32, PREPROCESSOR_ARGS, FILTER_ARGS>
     options: NoteGetterOptions<NOTE, M, PREPROCESSOR_ARGS, FILTER_ARGS>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable + Eq,
+    NOTE: NoteType + NoteHash + Packable<N = M> + Eq,
 {
     let confirmed_notes = get_notes(context, storage_slot, options);
     let confirmed_note = confirmed_notes.get(0);

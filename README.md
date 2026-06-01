@@ -18,3 +18,8 @@ storage_proofs = { git = "https://github.com/nemi-fi/aztec_storage_proofs", tag 
 ```
 
 For an end to end example, see [lib.test.ts](lib.test.ts).
+
+```bash
+nargo check
+```
+
