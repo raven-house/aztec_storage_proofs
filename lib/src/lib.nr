@@ -1,24 +1,24 @@
 use aztec::{
     context::PrivateContext,
     note::{
+        ConfirmedNote,
         note_getter::get_notes,
         note_getter_options::NoteGetterOptions,
         note_interface::{NoteHash, NoteType},
-        note_metadata::{NoteMetadata, SettledNoteMetadata},
-        retrieved_note::RetrievedNote,
-        utils::compute_note_hash_for_nullify,
     },
-    protocol_types::{
+    protocol::{
         address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
-        merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
-        traits::{Packable, Serialize},
+        hash::{compute_siloed_note_hash, compute_unique_note_hash},
+        merkle_tree::{MembershipWitness, root_from_sibling_path},
+        traits::Packable,
     },
-    state_vars::storage,
 };
 
 pub fn assert_note_inclusion<NOTE>(
     note: NOTE,
+    owner: AztecAddress,
+    randomness: Field,
     note_nonce: Field,
     membership_witness: MembershipWitness<NOTE_HASH_TREE_HEIGHT>,
     contract_address: AztecAddress,
@@ -28,15 +28,18 @@ pub fn assert_note_inclusion<NOTE>(
 where
     NOTE: NoteHash,
 {
-    // storage proof
-    let retrieved_note = RetrievedNote {
-        note,
-        contract_address,
-        metadata: NoteMetadata::from(SettledNoteMetadata::new(note_nonce)),
-    };
-    let note_hash = compute_note_hash_for_nullify(retrieved_note, storage_slot);
+    // Compute the note hash using the NoteHash trait
+    let note_hash = note.compute_note_hash(owner, storage_slot, randomness);
+
+    // Silo the note hash with the contract address
+    let siloed_note_hash = compute_siloed_note_hash(contract_address, note_hash);
+
+    // Compute the unique note hash (this is what's stored in the tree)
+    let unique_note_hash = compute_unique_note_hash(note_nonce, siloed_note_hash);
+
+    // Verify membership in the note hash tree
     let computed_root = root_from_sibling_path(
-        note_hash,
+        unique_note_hash,
         membership_witness.leaf_index,
         membership_witness.sibling_path,
     );
@@ -46,33 +49,24 @@ where
     );
 }
 
-pub fn get_note_inclusion_data<NOTE, let N: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
+pub fn get_note_inclusion_data<NOTE, let M: u32, PREPROCESSOR_ARGS, FILTER_ARGS>(
     context: &mut PrivateContext,
     storage_slot: Field,
-    options: NoteGetterOptions<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>,
+    options: NoteGetterOptions<NOTE, M, PREPROCESSOR_ARGS, FILTER_ARGS>,
 ) -> NoteInclusionData<NOTE>
 where
-    NOTE: NoteType + NoteHash + Packable<N> + Eq,
+    NOTE: NoteType + NoteHash + Packable + Eq,
 {
-    let (retrieved_notes, _): (BoundedVec<RetrievedNote<NOTE>, _>, _) =
-        get_notes::<NOTE, _, PREPROCESSOR_ARGS, FILTER_ARGS>(context, storage_slot, options);
-    let note = retrieved_notes.get(0);
-    let note_hash = compute_note_hash_for_nullify(note, storage_slot);
-    NoteInclusionData { note, note_hash }
+    let confirmed_notes = get_notes(context, storage_slot, options);
+    let confirmed_note = confirmed_notes.get(0);
+
+    // The proven_note_hash is the note hash used to prove existence
+    let note_hash = confirmed_note.proven_note_hash;
+
+    NoteInclusionData { note: confirmed_note, note_hash }
 }
 
 pub struct NoteInclusionData<Note> {
-    pub note: RetrievedNote<Note>,
+    pub note: ConfirmedNote<Note>,
     pub note_hash: Field,
-}
-
-impl<Note, let N: u32> Serialize<N + 3 + 1> for NoteInclusionData<Note>
-where
-    Note: Serialize<N>,
-{
-    fn serialize(self) -> [Field; N + 3 + 1] {
-        let a = self.note.serialize();
-        let b = a.concat([self.note_hash]);
-        b
-    }
 }
