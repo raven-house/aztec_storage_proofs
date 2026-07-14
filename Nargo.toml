@@ -1,2 +1,4 @@
 [workspace]
-members = ["example_contract", "lib"]
+# example_contract / example_circuit demos are on aztec-nr v4.3.0 and are deferred (not consumed by raven-house).
+# The v5 deliverable is the `lib`, which the raven-house nft/voucher contracts depend on.
+members = ["lib"]

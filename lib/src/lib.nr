@@ -12,7 +12,7 @@ use aztec::{
         constants::NOTE_HASH_TREE_HEIGHT,
         hash::{compute_siloed_note_hash, compute_unique_note_hash},
         merkle_tree::{membership::MembershipWitness, root::root_from_sibling_path},
-        traits::{Packable, Serialize},
+        traits::{Deserialize, Packable, Serialize},
     },
 };
 
@@ -75,7 +75,7 @@ where
     NoteInclusionData { note, note_hash }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct NoteInclusionData<Note> {
     pub note: HintedNote<Note>,
     pub note_hash: Field,
